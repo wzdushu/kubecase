@@ -1,0 +1,120 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: traefik-ingress-service
+  namespace: kube-system
+spec:
+  selector:
+    k8s-app: traefik-ingress-lb
+  ports:
+    - protocol: TCP
+      port: 80
+      nodePort: 23456
+      name: http
+    - protocol: TCP
+      port: 443
+      nodePort: 23457
+      name: https
+    - protocol: TCP
+      port: 8080
+      nodePort: 22180
+      name: admin
+  type: NodePort
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: traefik-conf
+  namespace: kube-system
+data:
+  traefik.toml: |
+    [global]
+      checkNewVersion = false
+      sendAnonymousUsage = false
+
+    [log]
+      level = "DEBUG"
+
+    [api]
+      dashboard = true
+
+    [metrics.prometheus]
+      buckets = [0.1,0.3,1.2,5.0]
+      entryPoint = "metrics"
+
+    [entryPoints]
+      [entryPoints.http]
+        address = ":80"
+      [entryPoints.https]
+        address = ":443"
+      [entryPoints.admin]
+        address = ":8080"
+
+    [providers]
+      [providers.kubernetesCRD]
+      #[providers.kubernetesIngress]
+      #[providers.rancher]
+      #[providers.docker]
+
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: traefik
+  namespace: kube-system
+  labels:
+    k8s-app: traefik-ingress-lb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: traefik-ingress-lb
+  template:
+    metadata:
+      labels:
+        k8s-app: traefik-ingress-lb
+        name: traefik-ingress-lb
+    spec:
+      serviceAccountName: traefik-ingress-controller
+      terminationGracePeriodSeconds: 60
+      nodeSelector:
+        node-role.kubernetes.io/traefik: "true"
+      volumes:
+      - name: ssl
+        secret:
+          secretName: traefik-cert
+      - name: config
+        configMap:
+          name: traefik-conf
+      containers:
+      - image: traefik:v2.1
+        name: traefik-ingress-lb
+        volumeMounts:
+        - mountPath: "/ssl"
+          name: "ssl"
+        - mountPath: "/config"
+          name: "config"
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 800Mi
+          requests:
+            cpu: 500m
+            memory: 600Mi
+        ports:
+        - name: http
+          containerPort: 80
+          hostPort: 80
+        - name: https
+          containerPort: 443
+          hostPort: 443
+        - name: admin
+          containerPort: 8080
+        args:
+        - --configfile=/config/traefik.toml
+        - --entrypoints.http.Address=:80
+        - --entrypoints.https.Address=:443
+        - --entrypoints.https.Address=:8080
+        - --api
+        - --accesslog
