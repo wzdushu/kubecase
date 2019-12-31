@@ -1,0 +1,50 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: kube-system
+spec:
+  redirectScheme:
+    scheme: https
+
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: http-default-router
+  namespace: kube-system
+spec:
+  entryPoints:
+    - http
+  routes:
+  - match: HostRegexp(`{host:.+}`)
+    kind: Rule
+    services:
+    - name: traefik-ingress-service
+      kind: Service
+      namespaces: kube-system
+      port: 80
+    middlewares:
+    - name: redirect-https
+  tls:
+    options:
+      name: mytlsoption
+      namespaces: kube-system
+    certResolver: default
+
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: traefik-webui
+  namespace: kube-system
+spec:
+  entryPoints:
+    - https
+  routes:
+  - match: Host(`traefik.test.cn`)
+    kind: Rule
+    services:
+    - name: api@internal
+      kind: TraefikService
+      namespaces: kube-system

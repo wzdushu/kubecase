@@ -1,0 +1,33 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: rancher-https-headers
+  namespace: cattle-system
+spec:
+  headers:
+    customRequestHeaders:
+      X-Forwarded-Proto: "https"
+---
+
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: rancher-tls
+  namespace: cattle-system
+spec:
+  entryPoints:
+  - https
+  routes:
+  - match: Host(`rancher.test.cn`)
+    kind: Rule
+    services:
+    - name: rancher
+      kind: Service
+      namespaces: cattle-system
+      port: 80
+    middlewares:
+    - name: rancher-https-headers
+      namespaces: cattle-system
+
+  tls:
+    certResolver: default

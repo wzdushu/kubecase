@@ -10,17 +10,3 @@ spec:
       - name: traefik-ingress-service
         weight: 1
         port: 8080
-
----
-apiVersion: traefik.containo.us/v1alpha1
-kind: TraefikService
-metadata:
-  name: rancher-traefikservice
-  namespace: cattle-system
-
-spec:
-  weighted:
-    services:
-      - name: rancher
-        weight: 1
-        port: 80

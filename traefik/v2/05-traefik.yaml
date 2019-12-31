@@ -15,10 +15,6 @@ spec:
       port: 443
       nodePort: 23457
       name: https
-    - protocol: TCP
-      port: 8080
-      nodePort: 22180
-      name: admin
   type: NodePort
 
 ---
@@ -48,14 +44,12 @@ data:
         address = ":80"
       [entryPoints.https]
         address = ":443"
-      [entryPoints.admin]
-        address = ":8080"
 
-    [providers]
-      [providers.kubernetesCRD]
-      #[providers.kubernetesIngress]
-      #[providers.rancher]
-      #[providers.docker]
+    [tls.stores]
+      [tls.stores.default]
+        [tls.stores.default.defaultCertificate]
+          certFile = "/config/tls/test.cn.crt"
+          keyFile  = "/config/tls/test.cn.key"
 
 ---
 kind: Deployment
@@ -88,13 +82,13 @@ spec:
         configMap:
           name: traefik-conf
       containers:
-      - image: traefik:v2.1
+      - image: traefik:v2.1.1
         name: traefik-ingress-lb
         volumeMounts:
-        - mountPath: "/ssl"
-          name: "ssl"
         - mountPath: "/config"
           name: "config"
+        - mountPath: "/config/tls"
+          name: "ssl"
         resources:
           limits:
             cpu: 1000m
@@ -109,12 +103,12 @@ spec:
         - name: https
           containerPort: 443
           hostPort: 443
-        - name: admin
-          containerPort: 8080
         args:
-        - --configfile=/config/traefik.toml
         - --entrypoints.http.Address=:80
         - --entrypoints.https.Address=:443
-        - --entrypoints.https.Address=:8080
         - --api
         - --accesslog
+        - --providers.file.directory=/config/
+        - --providers.file.watch=true
+        - --ping=true
+        - --providers.kubernetescrd
